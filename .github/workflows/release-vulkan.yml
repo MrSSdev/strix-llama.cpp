@@ -28,7 +28,7 @@ permissions:
 env:
   GH_TOKEN: ${{ github.token }}
   BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
-  CMAKE_ARGS: "-DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_TOOLS=ON -DLLAMA_BUILD_SERVER=ON -DGGML_RPC=ON"
+  CMAKE_ARGS: "-DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_TOOLS=ON -DLLAMA_BUILD_SERVER=ON -DLLAMA_BUILD_UI=OFF -DLLAMA_USE_PREBUILT_UI=OFF -DGGML_RPC=ON"
   VULKAN_VERSION: 1.4.357.0
 
 jobs:
@@ -121,23 +121,22 @@ jobs:
       - name: Install Ninja
         run: choco install ninja
 
-      # clang-cl via the llvm toolchain file, not plain MSVC. GGML_CPU_ALL_VARIANTS is
-      # what makes the archive portable across x86-64 machines, and upstream only ever
-      # builds that under clang (its windows-cpu job). vcvarsall is located through
-      # vswhere so this does not break when the runner image bumps Visual Studio.
+      # Use the MSVC compiler provided by the runner. The bundled Clang 20 is too
+      # old for the VS STL on windows-2025 (STL1000: requires Clang 22+).
+      # Build a single portable x64 CPU backend alongside Vulkan; MSVC cannot
+      # compile the LLVM-oriented GGML_CPU_ALL_VARIANTS feature probes.
+      # Locate vcvarsall with vswhere to tolerate Visual Studio image changes.
       - name: Build
         shell: cmd
         run: |
           for /f "usebackq tokens=*" %%i in (`"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set VSPATH=%%i
           call "%VSPATH%\VC\Auxiliary\Build\vcvarsall.bat" x64
           cmake -S . -B build -G "Ninja Multi-Config" ^
-            -D CMAKE_TOOLCHAIN_FILE=cmake/x64-windows-llvm.cmake ^
             -DGGML_VULKAN=ON ^
             -DGGML_NATIVE=OFF ^
-            -DGGML_BACKEND_DL=ON ^
-            -DGGML_CPU_ALL_VARIANTS=ON ^
-            -DGGML_OPENMP=ON ^
-            -DGGML_OPENMP_FETCH=ON ^
+            -DGGML_BACKEND_DL=OFF ^
+            -DGGML_CPU_ALL_VARIANTS=OFF ^
+            -DGGML_OPENMP=OFF ^
             -DLLAMA_BUILD_BORINGSSL=ON ^
             ${{ env.CMAKE_ARGS }}
           cmake --build build --config Release
@@ -146,8 +145,8 @@ jobs:
         id: tag
         uses: ./.github/actions/get-tag-name
 
-      # Everything in one archive: the executables, the CPU backend variants and
-      # ggml-vulkan.dll. Unlike upstream's split artifacts there is nothing to combine.
+      # Everything in one archive: the executables, CPU backend and Vulkan DLL.
+      # Unlike upstream's split artifacts there is nothing to combine.
       - name: Pack artifacts
         run: |
           copy LICENSE .\build\bin\Release\
