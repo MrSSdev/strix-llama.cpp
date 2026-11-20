@@ -11,7 +11,7 @@
 # ships a single self-contained archive instead.
 #
 # Manual trigger only. It never fires on push.
-name: Release (Vulkan)
+name: Strix Halo Windows Vulkan Build
 
 on:
   workflow_dispatch:
