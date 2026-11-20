@@ -10,7 +10,7 @@
 # nothing to combine — the Windows job below builds the whole thing in one go and
 # ships a single self-contained archive instead.
 #
-# Manual trigger only. It never fires on push.
+# Manual trigger only. It never fires on push. 
 name: Strix Halo Windows Vulkan Build
 
 on:
